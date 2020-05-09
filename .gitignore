@@ -1,0 +1,13 @@
+uid.txt
+ID.txt
+*.exe
+*.dll
+*.bat
+*.exe
+build/
+dist/
+CapitalLog/
+__pycache__/
+*.json
+*.spec
+*.pyc
