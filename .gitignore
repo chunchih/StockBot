@@ -11,5 +11,3 @@ __pycache__/
 *.json
 *.spec
 *.pyc
-TX00-report.txt
-data/
