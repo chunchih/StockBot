@@ -1,7 +1,7 @@
-from tkTool import TX00Window
 from connectCapitalAPI import loginCapitalAccount
+from tkTool import recordWindow
 
-if __name__ == '__main__':    
+if __name__ == '__main__':
     loginCapitalAccount()
-    root = TX00Window()
+    root = recordWindow()
     root.mainloop()

@@ -13,3 +13,4 @@ __pycache__/
 *.pyc
 data/
 TX00-report.txt
+.vscode
