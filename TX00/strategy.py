@@ -52,27 +52,63 @@ from StockData import TickInfoEnum
 
 #     return signal 
 
+INVALID_PRICE = -1
+def MADirection(price, period):
+    addedIdx = -1
+    removedIdx = -1-period
+    
+    if len(price) < -removedIdx or price[removedIdx] == INVALID_PRICE:
+        return "Invalid"
+
+    if price[removedIdx] < price[addedIdx]:
+        return "Up"
+
+    if price[removedIdx] >= price[addedIdx]:
+        return "Down"
+
 def MASync(stock, interval): 
     currentTicks = stock.currentTicks.getTicksWithInterval(interval)
     totalTicks = stock.totalTicks.getTicksWithInterval(interval)
     stockNum = stock.stockNum
 
-    MA60 = SMA(array(totalTicks.closes, dtype=double), 60)
-    MA20 = SMA(array(totalTicks.closes, dtype=double), 20)
-    MA10 = SMA(array(totalTicks.closes, dtype=double), 10)
+    if totalTicks.getNum() == 0 or currentTicks.getNum() == 0:
+        return []
+    
+    # MA60 = SMA(array(totalTicks.closes, dtype=double), 60)
+    # MA20 = SMA(array(totalTicks.closes, dtype=double), 20)
+    # MA10 = SMA(array(totalTicks.closes, dtype=double), 10)
 
-    rsi = RSI(array(totalTicks.closes, dtype=double), timeperiod=9)
-
-    if currentTicks.getNum() == 0 or isNaN(MA60[-2]) or isNaN(MA20[-2]) or isNaN(MA10[-2]) or isNaN(rsi[-2]):
+    RSI_PERIOD = 9
+    if len(totalTicks.closes) < RSI_PERIOD*2+1 or INVALID_PRICE in totalTicks.closes[-RSI_PERIOD*2-1:]:
         return []
 
-    signal = []    
-    if MA60[-2] < MA60[-1] and MA20[-2] < MA20[-1] and MA10[-2] < MA10[-1] and rsi[-2] < 50 and rsi[-1] > 50:
+    RSICloses = []
+    for idx in range(len(totalTicks.closes)-1,-1,-1):
+        if totalTicks.closes[idx] != -1:
+            RSICloses.append(totalTicks.closes[idx])
+        else:
+            lastClose = RSICloses[-1]
+            for i in range(20):
+                RSICloses.append(lastClose+(i%2==1))
+            break
+
+    RSICloses = RSICloses[::-1]
+
+    rsi = RSI(array(RSICloses, dtype=double), timeperiod=RSI_PERIOD)
+    
+
+    signal = []  
+
+    MA60Direction = MADirection(totalTicks.closes, 60)
+    MA20Direction = MADirection(totalTicks.closes, 20)
+    MA10Direction = MADirection(totalTicks.closes, 10)
+
+    if MA60Direction == "Up" and MA20Direction == "Up" and MA10Direction == "Up" and rsi[-2] < 50 and rsi[-1] > 50:
         timestamp = currentTicks.times[-1].strip()
         s = "【均線多頭排列】 股票代號 : %s %s"%(stockNum, timestamp)
         signal.append(s)
 
-    if MA60[-2] > MA60[-1] and MA20[-2] > MA20[-1] and MA10[-2] > MA10[-1] and rsi[-2] > 50 and rsi[-1] < 50:
+    if MA60Direction == "Down" and MA20Direction == "Down" and MA10Direction == "Down" and rsi[-2] > 50 and rsi[-1] < 50:
         timestamp = currentTicks.times[-1].strip()
         s = "【均線空頭排列】 股票代號 : %s %s"%(stockNum, timestamp)
         signal.append(s)
@@ -87,13 +123,17 @@ def curve(stock, interval):
     if ticks.getNum() == 0:
         return []
     
-    shortTermCloseMA = SMA(array(ticks.closes, dtype=double), 3)
-    longTermLowMA = SMA(array(ticks.lows, dtype=double), 5)
-    longTermHighMA = SMA(array(ticks.highs, dtype=double), 5)
+    smallPeriod = 3
+    bigPeriod = 5
+
+    shortTermCloseMA = SMA(array(ticks.closes, dtype=double), smallPeriod)
+    longTermLowMA = SMA(array(ticks.lows, dtype=double), bigPeriod)
+    longTermHighMA = SMA(array(ticks.highs, dtype=double), bigPeriod)
+
+    if len(longTermHighMA) < 3*bigPeriod or INVALID_PRICE in ticks.closes[-3*bigPeriod:]:
+        return []
 
     signal = []
-    if len(longTermLowMA) < 5 or isNaN(longTermLowMA[-5]):
-        return []
 
     isMAGC = shortTermCloseMA[-1] >= longTermLowMA[-1] and shortTermCloseMA[-2] <= longTermLowMA[-2]
     isMADC = shortTermCloseMA[-1] <= longTermHighMA[-1] and shortTermCloseMA[-2] >= longTermHighMA[-2]
@@ -103,7 +143,7 @@ def curve(stock, interval):
     isLongTermHighMAUp = longTermHighMA[-2] <= longTermHighMA[-1]
     isLongTermLowMADown = longTermLowMA[-2] >= longTermLowMA[-1]
 
-    if  ticks.opens[-1] <= ticks.closes[-1]:      
+    if ticks.opens[-1] <= ticks.closes[-1]:      
         isBelowInRow = ticks.closes[-2] <= longTermLowMA[-2] and ticks.closes[-3] <= longTermLowMA[-3]
         if isMAGC and isShortTermMAUp and isLongTermLowMADown and isBelowInRow:
             timestamp = ticks.times[-1].strip()
@@ -127,11 +167,12 @@ def nType(stock):
     totalTicks = stock.totalTicks
 
     peakIdx, bottomIdx = getPeakBottom(currentTicks)  
+
+    if len(totalTicks.lows) < 14 or INVALID_PRICE in totalTicks.closes[-14:]:
+        return []
     K, _ = STOCH(array(totalTicks.highs, dtype=double), array(totalTicks.lows, dtype=double), array(totalTicks.closes, dtype=double))
     DI_MINUS = MINUS_DI(array(totalTicks.highs, dtype=double), array(totalTicks.lows, dtype=double), array(totalTicks.closes, dtype=double))
     DI_PLUS = PLUS_DI(array(totalTicks.highs, dtype=double), array(totalTicks.lows, dtype=double), array(totalTicks.closes, dtype=double))
-    if isNaN(K[-1]) or isNaN(DI_PLUS[-1]) or isNaN(DI_MINUS[-1]):
-        return []
 
     signal = [] 
     if (K[-1] < 20) and (DI_PLUS[-1] >= DI_MINUS[-1]):
@@ -146,9 +187,11 @@ def getPeakBottom(ticks):
 
     peakIdx, bottomIdx = [], []
     for idx in range(1, len(ticks.highs)-1):
-        if isBiggerThanNeigbor(ticks.highs, idx, "left") and isBiggerThanNeigbor(ticks.highs, idx, "right"):
+        if ticks.closes[idx] == INVALID_PRICE:
+            peakIdx, bottomIdx = [], []
+        elif isBiggerThanNeigbor(ticks.highs, idx, "left") and isBiggerThanNeigbor(ticks.highs, idx, "right"):
             peakIdx.append(idx)
-        if isSmallerThanNeigbor(ticks.lows, idx, "left") and isSmallerThanNeigbor(ticks.lows, idx, "right"):
+        elif isSmallerThanNeigbor(ticks.lows, idx, "left") and isSmallerThanNeigbor(ticks.lows, idx, "right"):
             bottomIdx.append(idx)    
     return peakIdx, bottomIdx
 
@@ -157,6 +200,8 @@ def isBiggerThanNeigbor(price, currentIdx, side):
     idxRange = range(currentIdx, -1, -1) if side == "left" else range(currentIdx, len(price), 1)
 
     for idx in idxRange:
+        if price[idx] == INVALID_PRICE:
+            break
         if price[idx] > currentPrice:
             return False
         if price[idx] < currentPrice:
@@ -168,6 +213,8 @@ def isSmallerThanNeigbor(price, currentIdx, side):
     idxRange = range(currentIdx, -1, -1) if side == "left" else range(currentIdx, len(price), 1)
 
     for idx in idxRange:
+        if price[idx] == INVALID_PRICE:
+            break
         if price[idx] < currentPrice:
             return False
         if price[idx] > currentPrice:
@@ -186,17 +233,14 @@ def nTypeL1Up(time, ticks, peakIdx, bottomIdx, stockNum=None, lowerBound=0):
         pIdx1 = findNextIdx(peakIdx, bIdx1)
         if pIdx1 is None: continue
         if isRangeOverBound(ticks.lows[bIdx1+1:pIdx1], lowerBound=ticks.lows[bIdx1]): continue
-        # print("pIdx1:", time[pIdx1],)
 
         bIdx2 = findNextIdx(bottomIdx, pIdx1)     
         if bIdx2 is None: continue
         if ticks.lows[bIdx1] >= ticks.lows[bIdx2]: continue
         if isRangeOverBound(ticks.highs[pIdx1+1:bIdx2+1], upperBound=ticks.lows[bIdx1]+PERIOD_OVERBOUGHT): continue
-        # print("bIdx2:", time[bIdx2],)
 
         pIdx2 = findUpPIdx2(bIdx1, bIdx2, pIdx1, ticks)
         if pIdx2 is None: continue
-        # print("pIdx2:", time[pIdx2])
 
         idxList.append([bIdx1, pIdx1, bIdx2, pIdx2])
     
@@ -229,7 +273,7 @@ def nTypeL1Down(time, ticks, peakIdx, bottomIdx, stockNum=None, upperBound=0):
 
         bIdx1 = findNextIdx(bottomIdx, pIdx1)
         if bIdx1 is None: continue
-        if isRangeOverBound(ticks.high[pIdx1+1:bIdx1], upperBound=ticks.highs[pIdx1]): continue
+        if isRangeOverBound(ticks.highs[pIdx1+1:bIdx1], upperBound=ticks.highs[pIdx1]): continue
         # print("bIdx1:", time[bIdx1],)
 
         pIdx2 = findNextIdx(peakIdx, bIdx1)

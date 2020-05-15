@@ -51,6 +51,11 @@ class Ticks:
         return newTicks
 
     def getTicksWithInterval(self, interval):
+        INVALID_PRICE = -1
+
+        if len(self.times) == 0:
+            return self
+
         if interval == 1:
             return self
 
@@ -63,22 +68,26 @@ class Ticks:
                 firstIdx = i
                 lastIdx = i+interval-1
                 d, t, o, h, l, c, v = self.dates[lastIdx], self.times[lastIdx], self.opens[firstIdx], max(self.highs[i:i+interval]), min(self.lows[i:i+interval]), self.closes[lastIdx], sum(self.volumes[i:i+interval])
-                newTicks.addTick([d, t, o, h, l, c, v])
+                if l == INVALID_PRICE:
+                    newTicks.addTick([d, t, -1, -1, -1, -1, -1])
+                else:
+                    newTicks.addTick([d, t, o, h, l, c, v])
         return newTicks
 
 class StockData:
-    def __init__(self, stockNum, interval, todayDate):
+    def __init__(self, stockNum, interval, todayDate, mode='normal'):
         self.stockNum = stockNum
         self.interval = interval
         self.todayDate = todayDate
         # self.historyTicks = []
         # self.currentTicks = []
-        self.isCurrentStartAtBeginning = False
+        # self.isCurrentStartAtBeginning = False
         self.startTimeInteger = 8*60+45 if stockNum == "TX00" else 9*60
         self.endTimeInteger = 13*60+45 if stockNum == "TX00" else 13*60+30
         self.historyTicks = Ticks()
         self.currentTicks = Ticks()
         self.totalTicks = Ticks()
+        self.mode = mode
 
     def loadHistoryTicks(self):
         ticks = []
@@ -90,12 +99,15 @@ class StockData:
         
         maxDuration = 3000
         self.historyTicks.addTicks(ticks[-maxDuration:])
-        print("History Ticks: ", self.historyTicks.getNum())
+        if self.mode == 'normal':
+            print("History Ticks: ", self.historyTicks.getNum())
+        self.totalTicks = self.historyTicks
         
 
     def handleTicksByDateFolder(self, date):
         dateTicks = []
         fileInDate = os.path.join('data', date, self.stockNum+'.txt')
+
         if os.path.isfile(fileInDate) is True:
             content = open(fileInDate, 'r').read().splitlines()
             for kl in content:
@@ -105,32 +117,30 @@ class StockData:
         return dateTicks
     
     def addTickWithoutDuplicate(self, timestamp, newKLine, dataTicks):
-        if self.startTimeInteger <= convertTimestampToInteger(timestamp) <= self.endTimeInteger:
-            for i in range(TickInfoEnum.Open, TickInfoEnum.Close+1):
-                newKLine[i] = float(newKLine[i])
-            newKLine[TickInfoEnum.Volume] = int(newKLine[TickInfoEnum.Volume])
-            if newKLine not in dataTicks:
-                dataTicks.append(newKLine)
+        for i in range(TickInfoEnum.Open, TickInfoEnum.Close+1):
+            newKLine[i] = float(newKLine[i])
+        newKLine[TickInfoEnum.Volume] = int(newKLine[TickInfoEnum.Volume])
+        if newKLine not in dataTicks:
+            dataTicks.append(newKLine)
         return dataTicks
 
     def loadCurrentTicks(self):
         self.currentTicks = Ticks()
         ticks = self.handleTicksByDateFolder(self.todayDate)
-        self.isCurrentStartAtBeginning = ticks[0][TickInfoEnum.Time] == "08:46"
-
-        for tick in ticks:
-            self.currentTicks.addTick(tick)       
-
-        print("Current Ticks: ", self.currentTicks.getNum())
-        self.mergeHistoryAndCurrentTicks()
+        if len(ticks) != 0:
+            for tick in ticks:
+                self.currentTicks.addTick(tick)       
+            if self.mode == 'normal':
+                print("Current Ticks: ", self.currentTicks.getNum())
+            self.mergeHistoryAndCurrentTicks()
 
     def mergeHistoryAndCurrentTicks(self):
-        if self.isCurrentStartAtBeginning:
-            self.totalTicks = Ticks().mergeTicks(self.historyTicks, self.currentTicks)
-        else:
-            self.totalTicks = self.currentTicks
-
-        print("Total Ticks: ", self.totalTicks.getNum())
+        # if self.isCurrentStartAtBeginning:
+        self.totalTicks = Ticks().mergeTicks(self.historyTicks, self.currentTicks)
+        # else:
+        #     self.totalTicks = self.currentTicks
+        if self.mode == 'normal':
+            print("Total Ticks: ", self.totalTicks.getNum())
     
     def getHistoryTicks(self): return self.historyTicks
     def getCurrentTicks(self): return self.currentTicks

@@ -1,0 +1,3 @@
+O MASYNC 均線排列
+X NTYPE N型
+X CURVE 彎道

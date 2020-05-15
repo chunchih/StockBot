@@ -9,14 +9,15 @@ def predict(stockNum, todayDate):
     pre_stat = []
     prevTimestamp = ""
 
-    # interval = int(min_type.split(' ')[0])
     interval = 1
     stock = StockData(stockNum, interval, todayDate)
     stock.loadHistoryTicks()
+    lastTickRepeatedTimes = 0
+    prevLastTick = ""
 
     while True:
         currentTimestamp = strftime("%H:%M", gmtime())
-        validStatus, currentTimeInteger = checkTimeValid(prevTimestamp, currentTimestamp)
+        validStatus, _= checkTimeValid(prevTimestamp, currentTimestamp)
         if validStatus == "Leave":
             break   
         elif validStatus == "Wait":
@@ -29,5 +30,20 @@ def predict(stockNum, todayDate):
         stock.loadCurrentTicks()
         if stock.getCurrentTicks().getNum() == 0:
             time.sleep(30)
+            continue    
+
+        currentLastTick = stock.getCurrentTicks().getTickByIdx(-1)
+        if currentLastTick == prevLastTick:
+            lastTickRepeatedTimes += 1
+            time.sleep(10)
             continue
+        else:
+            lastTickRepeatedTimes = 0
+
+        prevLastTick = currentLastTick
+
+        if lastTickRepeatedTimes > 5:
+            time.sleep(5)
+            break
+
         pre_stat = feedSystem(stock, prevSignal=pre_stat)  

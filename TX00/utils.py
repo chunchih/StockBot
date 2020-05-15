@@ -24,6 +24,9 @@ def convertDatestampToInteger(datestamp):
 def convertTimestampToInteger(timestamp):
     return int(timestamp.split(':')[0])*60+int(timestamp.split(':')[1])
 
+def convertIntegerToTimestamp(integer):
+    return "%.2d:%.2d"%(integer//60, integer%60)
+
 def removeDataUntilLastDate(data, lastDate):
     newData = []
     for datum in data:
@@ -34,7 +37,9 @@ def removeDataUntilLastDate(data, lastDate):
 
         timestamp = comp[1].strip()
         timeToInteger = convertTimestampToInteger(timestamp)
-        if 8*60+46<=timeToInteger<=13*60+45:
+        if 13*60+46<=timeToInteger<=15*60:
+            continue
+        else:
             newData.append(datum)
     return newData
 
@@ -79,11 +84,9 @@ def isNaN(data):
 def checkTimeValid(prevTimestamp, currentTimestamp):
     currentTimeInteger = (convertTimestampToInteger(currentTimestamp) + 8*60) % (24*60)
 
-    if 13*60+46 < currentTimeInteger:
-        return "Leave", currentTimeInteger    
-    elif prevTimestamp == currentTimestamp or currentTimeInteger < 8*60+45:
-        return "Wait", currentTimeInteger
-    else:
+    if prevTimestamp != currentTimestamp and (8*60+45 <= currentTimeInteger <= 13*60+45 or 15*60 <= currentTimeInteger or currentTimeInteger <= 5*60):
         return "Valid", currentTimeInteger
-   
+    else:
+        return "Wait", currentTimeInteger
+    
 
